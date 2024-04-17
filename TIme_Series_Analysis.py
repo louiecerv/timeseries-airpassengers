@@ -5,14 +5,22 @@ import pandas as pd
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
+import time
 
 def app():
-    st.title('Time Series Analysis')
+    st.subheader('Forecasting Time Series Data with LSTM Neural Networks')
+    text = """Prof. Louie F. Cervantes, M. Eng. (Information Engineering)
+    \nCCS 229 - Intelligent Systems
+    *Department of Computer Science
+    *College of Information and Communications Technology
+    *##West Visayas State University##"""
+    st.write(text)
 
     # Load the data
     df = pd.read_csv('https://raw.githubusercontent.com/AileenNielsen/TimeSeriesAnalysisWithPython/master/data/AirPassengers.csv', header=0)
-    st.write(df)
-    st.write(df.shape)
+    with st.expander("Show Dataset"):
+        st.write(df)
+        st.write(df.shape)
 
     # Create a figure and axes using plt.subplots
     fig, ax = plt.subplots()
@@ -60,10 +68,29 @@ def app():
 
     # Compile the model
     model.compile(optimizer='adam', loss='mse')
+    
+    if "history" not in st.session_state:
+        st.session_state.history = None
 
-    if st.button("Start Training"):
+    st.sidebar.subheader("Perform LSTM Training and Forecasting")
+
+    if st.sidebar.button("Start Training"):
+        progress_bar = st.progress(0, text="Training the LSTM network, please wait...")        
         # Train the model
         history = model.fit(x_train, y_train, epochs=200, batch_size=16, validation_data=(x_test, y_test))
+        st.session_state.history = history
+
+        # update the progress bar
+        for i in range(100):
+            # Update progress bar value
+            progress_bar.progress(i + 1)
+            # Simulate some time-consuming task (e.g., sleep)
+            time.sleep(0.01)
+        # Progress bar reaches 100% after the loop completes
+        st.success("LSTM Network training completed!") 
+
+    if st.sidebar.button("Show Model Performance"):
+        history = st.session_state.history
 
         # Create a figure and axes
         fig, ax = plt.subplots()
@@ -98,6 +125,10 @@ def app():
             predbatch = model.predict(data_norm[i:i+window_size].reshape((1, window_size, 1)))
             predictions.append(predbatch)
 
+        # Inverse transform the predictions to get the original scale
+        predvalues = scaler.inverse_transform(np.array(predictions).reshape(-1, 1))		
+        predvalues = pd.DataFrame(predvalues)        
+        
         # Use the model to predict the next year of data
         last_seq = data_norm[-12:] # Use the last year of training data as the starting sequence
         last_seq = np.array(last_seq)   
@@ -120,7 +151,7 @@ def app():
         months = pd.date_range(start='1950-01', end='1950-12', freq='MS')
 
         # Create a Pandas DataFrame with the datetime and values columns
-        nextyear = pd.DataFrame({'Month': months, '#Production': prednext})
+        nextyear = pd.DataFrame({'Month': months, '#Passengers': prednext})
 
         time_axis = np.linspace(0, df.shape[0]-1, 12)
         time_axis = np.array([int(i) for i in time_axis])
@@ -131,24 +162,33 @@ def app():
         ax = fig.add_axes([0, 0, 2.1, 2])
         ax.set_title('Comparison of Actual and Predicted Data')
         ax.plot(df.iloc[:,1].values, label='Original Dataset')
-        ax.plot(list(predictions), color='red', label='Test Predictions')
+        ax.plot(list(predvalues[0]), color='red', label='Test Predictions')
         ax.set_xticks(time_axis)
         ax.set_xticklabels(time_axisLabels[time_axis], rotation=45)
-        ax.set_xlabel('\nTime', fontsize=20, fontweight='bold')
-        ax.set_ylabel('Beer Production', fontsize=20, fontweight='bold')
+        ax.set_xlabel('\nMonth', fontsize=20, fontweight='bold')
+        ax.set_ylabel('No. of Passengers', fontsize=20, fontweight='bold')
         ax.legend(loc='best', prop={'size':20})
         ax.tick_params(size=10, labelsize=15)
 
-        ax1 = fig.add_axes([2.3, 1.3, 1, 0.7])
+        # Get the maximum y-value among both datasets
+        max_y_value = max(df.iloc[:,1].values.max(), nextyear['#Passengers'].max())
+
+        # Set the same y-limits for both axes
+        ax.set_ylim(0, max_y_value)
+        ax1 = fig.add_axes([2.3, 0, 0.4, 2])
         ax1.set_title('Projected Monthly Airline Passengers')
-        ax1.plot(nextyear['#Production'], color='red', label='predicted')
+        ax1.plot(nextyear['#Passengers'], color='red', label='predicted')
         # Fix for xtick labels in second subplot
         ax1.set_xticklabels(nextyear['Month'].dt.strftime('%Y-%m'), rotation=45)  # Use strftime for formatting                
         ax1.set_xlabel('Month', fontsize=20, fontweight='bold')
-        ax1.set_ylabel('Beer Production', fontsize=20, fontweight='bold')
-        ax1.tick_params(size=10, labelsize=15)        
+        ax1.set_ylabel('No. of Passengers', fontsize=20, fontweight='bold')
+        ax1.tick_params(size=10, labelsize=15) 
+
+        # Set the same y-limits for both axes
+        ax1.set_ylim(0, max_y_value)
         st.pyplot(fig)
 
+    st.write("© 2024 West Visayas State university. All rights reserved.")
 if __name__ == '__main__':
     app()   
 
